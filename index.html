@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mini-WMS & GRN System - TIN Cilegon</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f1f5f9; margin: 0; padding: 16px; color: #1e293b; }
+    .container { max-width: 1360px; margin: 0 auto; }
+
+    /* Auth Card */
+    .auth-wrap { max-width: 400px; margin: 50px auto; background: #fff; padding: 28px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); }
+    .auth-wrap h2 { margin: 0 0 6px; color: #0f172a; font-size: 1.3rem; }
+    .auth-wrap p { margin: 0 0 20px; color: #64748b; font-size: 0.85rem; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.82rem; font-weight: 600; margin-bottom: 5px; color: #334155; }
+    .form-group input { width: 100%; box-sizing: border-box; }
+    .auth-tabs { display: flex; gap: 8px; margin-bottom: 18px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+    .auth-tab { flex: 1; padding: 8px; background: #f8fafc; color: #475569; border-radius: 6px; font-weight: 600; text-align: center; cursor: pointer; }
+    .auth-tab.active { background: #0f172a; color: #fff; }
+
+    /* Topbar & Navigation */
+    .header { background: #0f172a; color: #fff; padding: 14px 20px; border-radius: 10px; margin-bottom: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+    .header h1 { margin: 0; font-size: 1.15rem; }
+    .header p { margin: 3px 0 0; font-size: 0.8rem; color: #94a3b8; }
+    .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .nav-btn { padding: 10px 16px; background: #fff; color: #334155; border-radius: 8px; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .nav-btn.active { background: #2563eb; color: #fff; }
+
+    /* Inputs & Buttons */
+    input, select, textarea, button { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem; font-family: inherit; }
+    button { border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #2563eb; color: #fff; width: 100%; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-search { background: #2563eb; color: #fff; }
+    .btn-scan { background: #10b981; color: #fff; }
+    .btn-batch { background: #f59e0b; color: #0f172a; }
+    .btn-logout { background: #ef4444; color: #fff; padding: 8px 12px; font-size: 0.82rem; }
+    .btn-mini { padding: 4px 8px; font-size: 0.76rem; background: #e2e8f0; color: #0f172a; border-radius: 4px; }
+    .btn-approve { background: #10b981; color: #fff; padding: 5px 10px; font-size: 0.78rem; }
+    .btn-reject { background: #ef4444; color: #fff; padding: 5px 10px; font-size: 0.78rem; }
+
+    /* Cards & Tables */
+    .card { background: #fff; padding: 18px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px; }
+    .search-box { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+    .status { font-size: 0.85rem; margin-bottom: 10px; color: #475569; }
+    .table-wrap { overflow-x: auto; background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    th, td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; text-align: left; white-space: nowrap; }
+    th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+    th.col-pr, td.col-pr { max-width: 72px; width: 72px; font-size: 0.76rem; color: #64748b; overflow: hidden; text-overflow: ellipsis; padding-left: 6px; padding-right: 6px; }
+    td.desc { white-space: normal; min-width: 220px; max-width: 300px; }
+    th.col-qty, td.col-qty { text-align: right; font-variant-numeric: tabular-nums; min-width: 56px; padding-left: 8px; padding-right: 8px; }
+    th.col-qty { background: #f1f5f9; color: #0f172a; }
+    td.qty-deliver { font-weight: 700; color: #0f172a; background: #f8fafc; }
+
+    .badge { padding: 2px 8px; border-radius: 99px; font-size: 0.74rem; font-weight: 600; }
+    .badge-blue { background: #e0f2fe; color: #0369a1; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-amber { background: #fef3c7; color: #b45309; }
+    .badge-red { background: #fee2e2; color: #b91c1c; }
+    .reject-alert { color: #dc2626; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .grin-link { color: #2563eb; font-weight: 700; text-decoration: none; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .grin-link:hover { text-decoration: underline; }
+
+    /* Admin Upload Grid */
+    .admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .log-box { background: #0f172a; color: #a7f3d0; font-family: monospace; font-size: 0.8rem; padding: 12px; border-radius: 8px; height: 180px; overflow-y: auto; white-space: pre-wrap; margin-top: 12px; }
+
+    /* Modals & Print */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); z-index: 100; padding: 16px; overflow-y: auto; }
+    .modal-box { max-width: 820px; margin: 20px auto; background: #fff; border-radius: 12px; padding: 20px; }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 16px; }
+    .modal-head h2 { margin: 0; font-size: 1.1rem; }
+    .label-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+    .bin-label { border: 1.5px dashed #334155; padding: 8px; display: flex; align-items: center; gap: 10px; background: #fff; page-break-inside: avoid; height: 74px; box-sizing: border-box; }
+    .qr-box { width: 58px; height: 58px; flex-shrink: 0; }
+    .label-info { overflow: hidden; flex: 1; }
+    .label-code { font-size: 0.95rem; font-weight: 800; color: #000; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .label-desc { font-size: 0.68rem; color: #1e293b; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+    .hidden { display: none !important; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; margin: 0; }
+      .bin-label { border: 1px solid #000; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- 1. HALAMAN LOGIN & REGISTER (CUKUP NAMA LENGKAP + PASSWORD) -->
+<div id="authSection" class="auth-wrap">
+  <h2>Mini-WMS & GRN Lookup</h2>
+  <p>TIN Cilegon • Masuk atau buat akun dengan Nama Lengkap</p>
+
+  <div class="auth-tabs">
+    <div id="tabLogin" class="auth-tab active" onclick="switchAuthMode('login')">Login</div>
+    <div id="tabRegister" class="auth-tab" onclick="switchAuthMode('register')">Buat Akun Baru</div>
+  </div>
+
+  <div class="form-group">
+    <label>Nama Lengkap</label>
+    <input type="text" id="authName" placeholder="Contoh: Budi Santoso" autocomplete="username" />
+  </div>
+  <div class="form-group">
+    <label>Password (minimal 6 karakter)</label>
+    <input type="password" id="authPass" placeholder="••••••••" autocomplete="current-password" />
+  </div>
+
+  <button id="btnAuthSubmit" class="btn-primary" onclick="handleAuth()">Masuk</button>
+  <p id="authMsg" style="margin-top: 12px; font-size: 0.83rem; color: #dc2626; text-align: center;"></p>
+</div>
+
+<!-- 2. HALAMAN MENUNGGU APPROVAL ADMIN -->
+<div id="pendingSection" class="auth-wrap hidden" style="text-align: center;">
+  <h2>⏳ Menunggu Persetujuan Admin</h2>
+  <p id="pendingInfo" style="margin-top: 10px; line-height: 1.6;"></p>
+  <button class="btn-logout" style="width: 100%; margin-top: 14px;" onclick="logout()">Keluar / Ganti Akun</button>
+</div>
+
+<!-- 3. DASHBOARD UTAMA (SETELAH LOGIN & APPROVED) -->
+<div id="appSection" class="container hidden">
+  <div class="header">
+    <div>
+      <h1>Mini-WMS & GRN Lookup — TIN Cilegon</h1>
+      <p id="userBadgeText">Memuat profil...</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-scan" onclick="bukaScanner()">📷 Scan QR Bin</button>
+      <button class="btn-batch" onclick="bukaModalBatch()">🏷️ Cetak Label QR</button>
+      <button class="btn-logout" onclick="logout()">Keluar</button>
+    </div>
+  </div>
+
+  <!-- Tab Navigasi (Tab Admin hanya muncul untuk role 'admin') -->
+  <div id="adminNav" class="nav-tabs hidden">
+    <button id="navWms" class="nav-btn active" onclick="switchView('wms')">📦 Pencarian GRN & WMS</button>
+    <button id="navAdmin" class="nav-btn" onclick="switchView('admin')">👑 Dashboard Admin (Upload & Approval)</button>
+  </div>
+
+  <!-- VIEW A: PENCARIAN GRN & WMS -->
+  <div id="viewWms">
+    <div class="card search-box">
+      <input type="text" id="qItem" placeholder="Partcode / Item Code..." />
+      <input type="text" id="qDesc" placeholder="Deskripsi Barang..." />
+      <input type="text" id="qPo" placeholder="PO Number..." />
+      <input type="text" id="qGrn" placeholder="GRIN / Receipt No..." />
+      <select id="qOrg">
+        <option value="">Semua Inv Org</option>
+        <option value="TIN - Cilegon - Plant 1 - IO">Plant 1 - IO</option>
+        <option value="TIN - Cilegon - Maintenance 1 - IO">Maintenance 1 - IO</option>
+      </select>
+      <button class="btn-search" onclick="searchGRN()">Cari Data</button>
+    </div>
+
+    <div class="status" id="statusText">Scan QR pada bin box atau masukkan kata kunci pencarian.</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Inv Org</th>
+            <th>GRIN No (PDF)</th>
+            <th>Receipt Date</th>
+            <th>PO No</th>
+            <th class="col-pr">PR No</th>
+            <th>Item Code</th>
+            <th>Description</th>
+            <th>UOM</th>
+            <th class="col-qty">Receive</th>
+            <th class="col-qty">Accept</th>
+            <th class="col-qty">Reject</th>
+            <th class="col-qty">Deliver</th>
+            <th>Sub-Inv</th>
+            <th>Vendor</th>
+          </tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- VIEW B: DASHBOARD ADMIN (KHUSUS ANDA) -->
+  <div id="viewAdmin" class="hidden">
+    <div class="admin-grid">
+      <div class="card">
+        <h3 style="margin-top: 0;">1. Upload Data GRN Register (.xls Oracle)</h3>
+        <p style="font-size: 0.82rem; color: #64748b;">Pilih 1–2 file .xls per proses agar browser ringan. Data lama tidak tertimpa.</p>
+        <input type="file" id="fileInput" accept=".xls,.html" multiple style="width: 100%; box-sizing: border-box; margin-bottom: 10px;" />
+        <button id="btnUploadXls" class="btn-scan" style="width: 100%;" onclick="prosesUploadXls()">Upload Data .xls ke Database</button>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0;">2. Upload Scan PDF GRIN</h3>
+        <p style="font-size: 0.82rem; color: #64748b;">Nama file wajib sesuai Nomor GRIN (contoh: <strong>2500459.pdf</strong>).</p>
+        <input type="file" id="pdfInput" accept=".pdf" multiple style="width: 100%; box-sizing: border-box; margin-bottom: 10px;" />
+        <button id="btnUploadPdf" class="btn-search" style="width: 100%;" onclick="uploadPDFs()">Upload File PDF ke Storage</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong>Log Aktivitas Upload:</strong>
+      <div id="adminLog" class="log-box">Siap menerima file .xls atau .pdf...</div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0;">3. Daftar User & Persetujuan Akses (Approval)</h3>
+        <button class="btn-mini" onclick="loadUsers()">🔄 Refresh Daftar</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nama Lengkap</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Tanggal Daftar</th>
+              <th>Aksi Approval</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 1: SCANNER KAMERA HP -->
+<div id="scanModal" class="modal">
+  <div class="modal-box" style="max-width: 480px;">
+    <div class="modal-head">
+      <h2>📷 Arahkan Kamera ke QR Bin Box</h2>
+      <button class="btn-logout" onclick="tutupScanner()">Tutup</button>
+    </div>
+    <div id="reader" style="width: 100%;"></div>
+  </div>
+</div>
+
+<!-- MODAL 2: GENERATOR CETAK MASSAL LABEL BIN BOX -->
+<div id="batchModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>🏷️ Generator Label QR Bin Box (Siap Cetak A4)</h2>
+      <button class="btn-logout" onclick="tutupModalBatch()">Tutup</button>
+    </div>
+    <p style="font-size: 0.84rem; color: #475569; margin-top: 0;">
+      Tempel daftar <strong>Partcode</strong> dari Excel (satu kode per baris). Deskripsi barang otomatis ditarik dari database GRN.
+    </p>
+    <textarea id="batchInput" rows="4" style="width: 100%; box-sizing: border-box;" placeholder="P99M026290&#10;TI70080266"></textarea>
+    <div style="display: flex; gap: 10px; margin-top: 10px;">
+      <button class="btn-search" onclick="generateLabels()">Buat Preview Label</button>
+      <button class="btn-scan" onclick="window.print()">🖨️ Print / Save PDF (A4)</button>
+    </div>
+    <div id="printArea">
+      <div id="labelGrid" class="label-grid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // === GANTI DENGAN ANON PUBLIC KEY SUPABASE ANDA ===
+  const SUPABASE_URL = "https://yyrxsfvzcjyfvcxwvyqg.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5cnhzZnZ6Y2p5ZnZjeHd2eXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTUwNzE0MTQsImV4cCI6MjExMDY0NzQxNH0.xd6IVRxk7HQ4usjzNjl967St5vgvsCmbEMaxX6NQNLQ";
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let authMode = 'login';
+  let currentProfile = null;
+  let html5QrCode = null;
+
+  window.addEventListener('DOMContentLoaded', checkSession);
+
+  // Tekan Enter di kolom password untuk langsung Login / Daftar
+  document.getElementById('authPass').addEventListener('keypress', e => {
+    if (e.key === 'Enter') handleAuth();
+  });
+
+  function switchAuthMode(mode) {
+    authMode = mode;
+    document.getElementById('tabLogin').classList.toggle('active', mode === 'login');
+    document.getElementById('tabRegister').classList.toggle('active', mode === 'register');
+    document.getElementById('btnAuthSubmit').textContent = mode === 'login' ? 'Masuk' : 'Buat Akun Sekarang';
+    document.getElementById('authMsg').textContent = '';
+  }
+
+  // Konversi Nama Lengkap menjadi internal username email-format untuk Supabase Auth
+  function nameToInternalEmail(fullName) {
+    const slug = fullName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '.');
+    return `${slug}@tin.local`;
+  }
+
+  async function handleAuth() {
+    const fullName = document.getElementById('authName').value.trim();
+    const password = document.getElementById('authPass').value.trim();
+    const msg = document.getElementById('authMsg');
+    const btn = document.getElementById('btnAuthSubmit');
+
+    if (!fullName || fullName.length < 3) {
+      msg.style.color = "#dc2626";
+      msg.textContent = "Masukkan nama lengkap Anda (minimal 3 huruf).";
+      return;
+    }
+    if (!password || password.length < 6) {
+      msg.style.color = "#dc2626";
+      msg.textContent = "Password minimal 6 karakter.";
+      return;
+    }
+
+    const internalEmail = nameToInternalEmail(fullName);
+    btn.disabled = true;
+    msg.style.color = "#475569";
+    msg.textContent = "Memproses...";
+
+    try {
+      if (authMode === 'register') {
+        const { error } = await db.auth.signUp({
+          email: internalEmail,
+          password,
+          options: { data: { full_name: fullName } }
+        });
+        if (error) {
+          if (error.message.includes('already registered')) {
+            throw new Error("Nama ini sudah terdaftar. Silakan pindah ke tab Login.");
+          }
+          throw error;
+        }
+      } else {
+        const { error } = await db.auth.signInWithPassword({
+          email: internalEmail,
+          password
+        });
+        if (error) {
+          throw new Error("Nama lengkap atau password salah.");
+        }
+      }
+      await checkSession();
+    } catch (err) {
+      msg.style.color = "#dc2626";
+      msg.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function checkSession() {
+    const { data: { session } } = await db.auth.getSession();
+    document.getElementById('authSection').classList.add('hidden');
+    document.getElementById('pendingSection').classList.add('hidden');
+    document.getElementById('appSection').classList.add('hidden');
+
+    if (!session) {
+      document.getElementById('authSection').classList.remove('hidden');
+      return;
+    }
+
+    const { data: profile, error } = await db
+      .from('user_profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single();
+
+    if (error || !profile) {
+      document.getElementById('pendingSection').classList.remove('hidden');
+      document.getElementById('pendingInfo').textContent = "Akun sedang disiapkan atau menunggu persetujuan Admin.";
+      return;
+    }
+
+    currentProfile = profile;
+
+    if (profile.status !== 'approved') {
+      document.getElementById('pendingSection').classList.remove('hidden');
+      document.getElementById('pendingInfo').innerHTML =
+        `Halo <strong>${profile.full_name}</strong>,<br>Akun Anda saat ini berstatus <strong>${profile.status.toUpperCase()}</strong>.<br><br>Silakan hubungi <strong>Pak Fajar (Admin)</strong> untuk menyetujui akun Anda agar bisa mengakses data GRN.`;
+      return;
+    }
+
+    document.getElementById('appSection').classList.remove('hidden');
+    document.getElementById('userBadgeText').textContent =
+      `User: ${profile.full_name} • Akses: ${profile.role.toUpperCase()}`;
+
+    if (profile.role === 'admin') {
+      document.getElementById('adminNav').classList.remove('hidden');
+      loadUsers();
+    } else {
+      document.getElementById('adminNav').classList.add('hidden');
+    }
+  }
+
+  async function logout() {
+    await db.auth.signOut();
+    location.reload();
+  }
+
+  function switchView(view) {
+    document.getElementById('viewWms').classList.toggle('hidden', view !== 'wms');
+    document.getElementById('viewAdmin').classList.toggle('hidden', view !== 'admin');
+    document.getElementById('navWms').classList.toggle('active', view === 'wms');
+    document.getElementById('navAdmin').classList.toggle('active', view === 'admin');
+  }
+
+  // === ADMIN: KELOLA USER & APPROVAL ===
+  async function loadUsers() {
+    const { data, error } = await db
+      .from('user_profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return;
+    const tbody = document.getElementById('userTableBody');
+    tbody.innerHTML = data.map(u => {
+      const badgeClass = u.status === 'approved' ? 'badge-green' : (u.status === 'pending' ? 'badge-amber' : 'badge-red');
+      const tgl = new Date(u.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const isMainAdmin = ['fajar', 'fajar.ekadana', 'fajar.ekadana.wirachman', 'fajarwirachman'].includes(u.username);
+      return `
+        <tr>
+          <td><strong>${u.full_name}</strong></td>
+          <td><span class="badge badge-blue">${u.role}</span></td>
+          <td><span class="badge ${badgeClass}">${u.status}</span></td>
+          <td>${tgl}</td>
+          <td>
+            ${u.status !== 'approved' ? `<button class="btn-approve" onclick="updateUser('${u.id}', 'approved', '${u.role}')">✔ Approve</button>` : ''}
+            ${u.status === 'approved' && !isMainAdmin ? `<button class="btn-reject" onclick="updateUser('${u.id}', 'rejected', '${u.role}')">✖ Nonaktifkan</button>` : ''}
+            ${u.role !== 'admin' ? `<button class="btn-mini" onclick="updateUser('${u.id}', 'approved', 'admin')">Jadikan Admin</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function updateUser(userId, newStatus, newRole) {
+    const { error } = await db
+      .from('user_profiles')
+      .update({ status: newStatus, role: newRole })
+      .eq('id', userId);
+    if (error) alert("Gagal memperbarui user: " + error.message);
+    else loadUsers();
+  }
+
+  // === ADMIN: UPLOAD XLS & PDF ===
+  function adminLog(msg) {
+    const box = document.getElementById('adminLog');
+    box.textContent += `\n${msg}`;
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function makeHash(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0, ch; i < str.length; i++) {
+      ch = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+  }
+
+  function cleanText(el) { return el ? el.textContent.replace(/\s+/g, ' ').trim() : ''; }
+  function toNum(val) { const n = parseFloat(String(val).replace(/,/g, '').trim()); return isNaN(n) ? 0 : n; }
+
+  function flattenRow(tr) {
+    const vals = [];
+    const tds = Array.from(tr.children).filter(el => el.tagName === 'TD' || el.tagName === 'TH');
+    for (const td of tds) {
+      const nestedTrs = td.querySelectorAll('table tr');
+      if (nestedTrs.length > 0) {
+        const subCells = Array.from(nestedTrs).map(ntr =>
+          Array.from(ntr.children).filter(el => el.tagName === 'TD' || el.tagName === 'TH').map(std => cleanText(std))
+        );
+        if (subCells.length === 1) vals.push(...subCells[0]);
+        else {
+          const ncols = Math.max(...subCells.map(sc => sc.length));
+          for (let c = 0; c < ncols; c++) vals.push(subCells.map(sc => sc[c]).filter(Boolean).join('; '));
+        }
+      } else vals.push(cleanText(td));
+    }
+    return vals;
+  }
+
+  async function prosesUploadXls() {
+    const files = document.getElementById('fileInput').files;
+    if (!files.length) return alert('Pilih file .xls terlebih dahulu.');
+    const btn = document.getElementById('btnUploadXls');
+    btn.disabled = true;
+    document.getElementById('adminLog').textContent = 'Membaca file .xls...';
+
+    try {
+      const mergedMap = new Map();
+      for (const file of files) {
+        adminLog(`Parsing ${file.name}...`);
+        const text = await file.text();
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        const dataTable = Array.from(doc.querySelectorAll('table')).find(t => t.querySelector('tr')?.textContent.includes('Inv Org'));
+        if (!dataTable) continue;
+
+        const tbody = dataTable.querySelector('tbody') || dataTable;
+        const rows = Array.from(tbody.children).filter(el => el.tagName === 'TR');
+        const headers = flattenRow(rows[0]);
+        const idx = {};
+        headers.forEach((h, i) => { idx[h] = i; });
+        const getCol = (r, name) => (idx[name] !== undefined && r[idx[name]] !== undefined) ? r[idx[name]] : '';
+
+        for (let i = 1; i < rows.length; i++) {
+          const r = flattenRow(rows[i]);
+          if (r.length < 15 || !getCol(r, 'Receipt No.')) continue;
+          const item = {
+            inv_org: getCol(r, 'Inv Org'), receipt_no: getCol(r, 'Receipt No.'), receipt_date: getCol(r, 'Receipt Date'),
+            po_no: getCol(r, 'PO No'), po_date: getCol(r, 'PO Date'), buyer: getCol(r, 'Buyer'),
+            vendor_code: getCol(r, 'Vendor Code'), vendor_name: getCol(r, 'Vendor Name'), pr_no: getCol(r, 'PR No'),
+            pr_date: getCol(r, 'PR Date'), promised_date: getCol(r, 'Promised Date'), need_by_date: getCol(r, 'Need By Date'),
+            project_no: getCol(r, 'Project No'), task_no: getCol(r, 'Task No'), item_code: getCol(r, 'Item Code'),
+            uom: getCol(r, 'Uom'), item_desc: getCol(r, 'Item Desc.'), item_category: getCol(r, 'Item Category'),
+            receive_qty: toNum(getCol(r, 'Receive Qty')), accept_qty: toNum(getCol(r, 'Accept Qty')),
+            reject_qty: toNum(getCol(r, 'Reject Qty')), deliver_qty: toNum(getCol(r, 'Deliver Qty')),
+            unit_price: toNum(getCol(r, 'Unit Price')), currency_code: getCol(r, 'Currency Code'),
+            sub_inv: getCol(r, 'Sub- Inv'), receipt_created_by: getCol(r, 'Receipt Created By'),
+            receipt_created_date: getCol(r, 'Receipt Created Date'), receipt_deliver_by: getCol(r, 'Receipt Deliver By'),
+            receipt_deliver_date: getCol(r, 'Receipt Deliver Date'), lot_number: getCol(r, 'Lot Number'), comments: getCol(r, 'Comments')
+          };
+          const keyStr = `${item.inv_org}|${item.receipt_no}|${item.po_no}|${item.item_code}|${item.receive_qty}|${item.deliver_qty}|${item.receipt_created_date}`;
+          item.record_hash = makeHash(keyStr);
+          mergedMap.set(item.record_hash, item);
+        }
+      }
+
+      const finalList = Array.from(mergedMap.values());
+      adminLog(`Total baris unik siap unggah: ${finalList.length}`);
+      for (let i = 0; i < finalList.length; i += 500) {
+        const { error } = await db.from('grn_register').upsert(finalList.slice(i, i + 500), { onConflict: 'record_hash' });
+        if (error) throw error;
+        adminLog(`Terkirim ${Math.min(i + 500, finalList.length)} / ${finalList.length}...`);
+      }
+      adminLog('SELESAI! Database berhasil diperbarui.');
+    } catch (err) {
+      adminLog(`[ERROR]: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function uploadPDFs() {
+    const files = document.getElementById('pdfInput').files;
+    if (!files.length) return alert('Pilih file PDF terlebih dahulu.');
+    const btn = document.getElementById('btnUploadPdf');
+    btn.disabled = true;
+    document.getElementById('adminLog').textContent = `Mengunggah ${files.length} file PDF...`;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const { error } = await db.storage.from('grin_pdfs').upload(f.name.trim(), f, { upsert: true, contentType: 'application/pdf' });
+      adminLog(error ? `[GAGAL] ${f.name}: ${error.message}` : `[OK] (${i + 1}/${files.length}) ${f.name}`);
+    }
+    adminLog('SELESAI upload PDF!');
+    btn.disabled = false;
+  }
+
+  // === WMS: SCANNER, LABEL & PENCARIAN ===
+  document.querySelectorAll('#viewWms input').forEach(el => {
+    el.addEventListener('keypress', e => { if (e.key === 'Enter') searchGRN(); });
+  });
+
+  function bukaScanner() {
+    document.getElementById('scanModal').style.display = 'block';
+    html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 240, height: 240 } },
+      (decodedText) => {
+        const kode = decodedText.trim();
+        tutupScanner();
+        ['qItem','qDesc','qPo','qGrn','qOrg'].forEach(id => document.getElementById(id).value = '');
+        if (/^\d{6,8}$/.test(kode)) document.getElementById('qGrn').value = kode;
+        else document.getElementById('qItem').value = kode;
+        searchGRN();
+      }, () => {}
+    ).catch(err => { alert("Gagal akses kamera: " + err); tutupScanner(); });
+  }
+
+  function tutupScanner() {
+    document.getElementById('scanModal').style.display = 'none';
+    if (html5QrCode) { html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {}); html5QrCode = null; }
+  }
+
+  function bukaModalBatch() { document.getElementById('batchModal').style.display = 'block'; }
+  function tutupModalBatch() { document.getElementById('batchModal').style.display = 'none'; }
+
+  function cetakSatuLabel(itemCode, itemDesc) {
+    bukaModalBatch();
+    document.getElementById('batchInput').value = itemCode;
+    renderLabelCards([{ code: itemCode, desc: itemDesc }]);
+  }
+
+  async function generateLabels() {
+    const raw = document.getElementById('batchInput').value;
+    const codes = [...new Set(raw.split(/\r?\n/).map(s => s.trim().toUpperCase()).filter(Boolean))];
+    if (!codes.length) return alert("Masukkan minimal satu Partcode.");
+    const { data } = await db.from('grn_register').select('item_code, item_desc').in('item_code', codes);
+    const descMap = {};
+    (data || []).forEach(r => { if (r.item_code && !descMap[r.item_code.toUpperCase()]) descMap[r.item_code.toUpperCase()] = r.item_desc || ''; });
+    renderLabelCards(codes.map(c => ({ code: c, desc: descMap[c] || '(Deskripsi belum ada di GRN)' })));
+  }
+
+  function renderLabelCards(items) {
+    const grid = document.getElementById('labelGrid');
+    grid.innerHTML = '';
+    items.forEach((it, idx) => {
+      const card = document.createElement('div');
+      card.className = 'bin-label';
+      card.innerHTML = `<div id="qr_${idx}" class="qr-box"></div><div class="label-info"><div class="label-code">${it.code}</div><div class="label-desc">${it.desc}</div></div>`;
+      grid.appendChild(card);
+      new QRCode(document.getElementById(`qr_${idx}`), { text: it.code, width: 58, height: 58, correctLevel: QRCode.CorrectLevel.M });
+    });
+  }
+
+  async function bukaPDF(receiptNo) {
+    if (!receiptNo) return;
+    const fileName = `${receiptNo.trim()}.pdf`;
+    const { data, error } = await db.storage.from('grin_pdfs').createSignedUrl(fileName, 60);
+    if (error || !data?.signedUrl) {
+      alert(`File PDF untuk GRIN ${receiptNo} (${fileName}) belum tersedia.`);
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
+  }
+
+  async function searchGRN() {
+    const item = document.getElementById('qItem').value.trim();
+    const desc = document.getElementById('qDesc').value.trim();
+    const po   = document.getElementById('qPo').value.trim();
+    const grn  = document.getElementById('qGrn').value.trim();
+    const org  = document.getElementById('qOrg').value;
+    const status = document.getElementById('statusText');
+    const tbody  = document.getElementById('resultBody');
+
+    if (!item && !desc && !po && !grn && !org) {
+      status.textContent = "Isi minimal satu filter pencarian atau scan QR.";
+      return;
+    }
+
+    status.textContent = "Mencari data...";
+    let query = db.from('grn_register').select('*').order('id', { ascending: false }).limit(100);
+    if (item) query = query.ilike('item_code', `%${item}%`);
+    if (desc) query = query.ilike('item_desc', `%${desc}%`);
+    if (po)   query = query.ilike('po_no', `%${po}%`);
+    if (grn)  query = query.ilike('receipt_no', `%${grn}%`);
+    if (org)  query = query.eq('inv_org', org);
+
+    const { data, error } = await query;
+    if (error) { status.textContent = "Error: " + error.message; return; }
+
+    status.textContent = `Menampilkan ${data.length} hasil.`;
+    tbody.innerHTML = data.map(r => {
+      const rejQty = r.reject_qty ?? 0;
+      const rejHtml = rejQty > 0 ? `<span class="reject-alert">${rejQty}</span>` : `0`;
+      const grinHtml = r.receipt_no ? `<a class="grin-link" onclick="bukaPDF('${r.receipt_no}')">📄 ${r.receipt_no}</a>` : '-';
+      const safeCode = (r.item_code || '').replace(/'/g, "\\'");
+      const safeDesc = (r.item_desc || '').replace(/'/g, "\\'");
+      return `
+        <tr>
+          <td><button class="btn-mini" onclick="cetakSatuLabel('${safeCode}', '${safeDesc}')">🏷️</button></td>
+          <td><span class="badge badge-blue">${r.inv_org?.includes('Plant 1') ? 'Plant 1' : 'Maint 1'}</span></td>
+          <td>${grinHtml}</td>
+          <td>${r.receipt_date || '-'}</td>
+          <td>${r.po_no || '-'}</td>
+          <td class="col-pr" title="${r.pr_no || ''}">${r.pr_no || '-'}</td>
+          <td><strong>${r.item_code || '-'}</strong></td>
+          <td class="desc">${r.item_desc || '-'}</td>
+          <td>${r.uom || '-'}</td>
+          <td class="col-qty">${r.receive_qty ?? 0}</td>
+          <td class="col-qty">${r.accept_qty ?? 0}</td>
+          <td class="col-qty">${rejHtml}</td>
+          <td class="col-qty qty-deliver">${r.deliver_qty ?? 0}</td>
+          <td>${r.sub_inv || '-'}</td>
+          <td>${r.vendor_name || '-'}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+</script>
+</body>
+</html>
